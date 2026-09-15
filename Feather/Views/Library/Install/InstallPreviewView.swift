@@ -169,6 +169,12 @@ struct InstallPreviewView: View {
 							}
 						}
 					} else if await _installationMethod == 1 {
+						// A previous attempt that failed inside ensureRSDTunnel() leaves
+						// isRestartInProgress raised, which makes every later call return
+						// success without building an adapter. Clear it so this attempt
+						// reports its own failure rather than the last one's ghost.
+						HeartbeatManager.shared.clearStaleTunnelState()
+
 						let handler = await InstallationProxy(viewModel: viewModel)
 						try await handler.install(at: packageUrl, suspend: app.identifier == Bundle.main.bundleIdentifier!)
 					}

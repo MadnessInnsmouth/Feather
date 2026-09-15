@@ -14,6 +14,7 @@ struct TunnelView: View {
 	@State private var _isImportingPairingPresenting = false
 	
 	@State var doesHavePairingFile = false
+	@State private var _pairingFormat: PairingFileFormat?
 	@State private var isLocalDevVpnAvailable = false
 	
 	// MARK: Body
@@ -26,8 +27,11 @@ struct TunnelView: View {
 					TunnelHeaderView()
 				}
 			} footer: {
-				if doesHavePairingFile {
-					Text(.localized("Seems like you've gotten your hands on your pairing file!"))
+				if let format = _pairingFormat {
+					VStack(alignment: .leading, spacing: 4) {
+						Text(format.title)
+						Text(format.advice(isRsd: HeartbeatManager.shared.isRsd))
+					}
 				} else {
 					Text(.localized("No pairing file found, please import it."))
 				}
@@ -77,15 +81,13 @@ struct TunnelView: View {
 				onDocumentsPicked: { urls in
 					guard let selectedFileURL = urls.first else { return }
 					FR.movePairing(selectedFileURL)
-					doesHavePairingFile = true
+					_refreshPairingFormat()
 				}
 			)
 			.ignoresSafeArea()
 		}
 		.onAppear {
-			doesHavePairingFile = FileManager.default.fileExists(atPath: HeartbeatManager.pairingFile())
-				? true
-				: false
+			_refreshPairingFormat()
 			if let url = URL(string: "localdevvpn://") {
 				isLocalDevVpnAvailable = UIApplication.shared.canOpenURL(url)
 			} else {
@@ -94,6 +96,23 @@ struct TunnelView: View {
 		}
 	}
 	
+	/// Re-reads the stored pairing file and identifies its format.
+	///
+	/// Replaces a bare `fileExists` check, which reported success for any file at
+	/// the path regardless of whether the install path could actually parse it.
+	private func _refreshPairingFormat() {
+		let path = HeartbeatManager.pairingFile()
+
+		guard FileManager.default.fileExists(atPath: path) else {
+			doesHavePairingFile = false
+			_pairingFormat = nil
+			return
+		}
+
+		doesHavePairingFile = true
+		_pairingFormat = PairingFileInspector.inspect(atPath: path)
+	}
+
 	@ViewBuilder
 	private func _tunnelInfo() -> some View {
 		HStack {
