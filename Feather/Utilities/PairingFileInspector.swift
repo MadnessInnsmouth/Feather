@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import NimbleExtensions
 
 /// Identifies which pairing-file format a file on disk holds.
 ///
