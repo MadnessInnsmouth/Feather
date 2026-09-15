@@ -15,6 +15,7 @@ struct TunnelView: View {
 	
 	@State var doesHavePairingFile = false
 	@State private var _pairingFormat: PairingFileFormat?
+	@State private var _isGeneratingPairing = false
 	@State private var isLocalDevVpnAvailable = false
 	
 	// MARK: Body
@@ -40,6 +41,20 @@ struct TunnelView: View {
 			Section {
 				Button(.localized("Import Pairing File"), systemImage: "square.and.arrow.down") {
 					_isImportingPairingPresenting = true
+				}
+				if _needsRemotePairing {
+					Button {
+						_generateRemotePairing()
+					} label: {
+						HStack {
+							Label(.localized("Generate Remote Pairing File"), systemImage: "wand.and.stars")
+							if _isGeneratingPairing {
+								Spacer()
+								ProgressView()
+							}
+						}
+					}
+					.disabled(_isGeneratingPairing)
 				}
 				if #available(iOS 17.4, *) {
 				} else {
@@ -96,6 +111,26 @@ struct TunnelView: View {
 		}
 	}
 	
+	/// Whether this device needs a RemotePairing file but holds a lockdown one.
+	private var _needsRemotePairing: Bool {
+		_pairingFormat == .lockdown && HeartbeatManager.shared.isRsd
+	}
+
+	private func _generateRemotePairing() {
+		_isGeneratingPairing = true
+
+		FR.generateRemotePairingFile { error in
+			_isGeneratingPairing = false
+			_refreshPairingFormat()
+
+			UIAlertController.showAlertWithOk(
+				title: .localized("Pairing File"),
+				message: error.map { String(describing: $0) }
+					?? .localized("Generated a remote pairing file for this device.")
+			)
+		}
+	}
+
 	/// Re-reads the stored pairing file and identifies its format.
 	///
 	/// Replaces a bare `fileExists` check, which reported success for any file at
