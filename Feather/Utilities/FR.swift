@@ -154,10 +154,34 @@ enum FR {
 					try? fileManager.copyItem(at: active, to: kept)
 				}
 
+				// The RemotePairing port is assigned dynamically, so it is browsed
+				// for rather than assumed. A manual override wins when set, since
+				// discovery needs local network permission and may not see the
+				// device through every tunnel configuration.
+				let defaults = UserDefaults.standard
+				let overrideHost = defaults.string(forKey: "Feather.pairingHost") ?? ""
+				let overridePort = UInt16(defaults.integer(forKey: "Feather.pairingPort"))
+
+				var host = overrideHost.isEmpty ? HeartbeatManager.shared.ipAddress : overrideHost
+				var port = overridePort
+
+				if port == 0 {
+					guard let found = await RemotePairingBrowser.discover() else {
+						throw PairingBootstrap.Failure(
+							stage: .localized("Finding the pairing service"),
+							message: .localized("No RemotePairing service was found. Check the VPN is connected and that Feather has local network permission, or set the address and port manually."),
+							code: 0
+						)
+					}
+
+					if overrideHost.isEmpty { host = found.host }
+					port = found.port
+				}
+
 				try PairingBootstrap.generateRemotePairingFile(
 					writingTo: active.path,
-					address: HeartbeatManager.shared.ipAddress,
-					port: HeartbeatManager.shared.port_rsd,
+					address: host,
+					port: port,
 					hostname: Bundle.main.name,
 					pin: pin
 				)
