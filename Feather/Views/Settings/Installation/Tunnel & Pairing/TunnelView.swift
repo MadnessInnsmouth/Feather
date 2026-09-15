@@ -111,9 +111,12 @@ struct TunnelView: View {
 		}
 	}
 	
-	/// Whether this device needs a RemotePairing file but holds a lockdown one.
+	/// Whether this device needs a RemotePairing file and has no usable one.
+	///
+	/// Covers the no-file case too: pairing runs against the device over the
+	/// tunnel, so nothing has to be imported first.
 	private var _needsRemotePairing: Bool {
-		_pairingFormat == .lockdown && HeartbeatManager.shared.isRsd
+		HeartbeatManager.shared.isRsd && _pairingFormat != .remotePairing
 	}
 
 	private func _generateRemotePairing() {

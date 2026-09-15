@@ -3,7 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - v*
+      - 'v*'
+      # Working-branch builds publish their own prereleases as v<version>-dev.<n>.
+      # Without this they would match v* and be built and released twice.
+      - '!v*-dev.*'
   workflow_dispatch:
 
 jobs:

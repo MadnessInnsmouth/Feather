@@ -1,13 +1,16 @@
 name: Build
 
-# Release only builds on tags, which is no use while iterating on a fix.
-# This builds every push to a working branch and leaves an installable .ipa
-# attached to the run.
+# Publishes every working-branch build as a tagged prerelease with the .ipa
+# attached as a release asset, so it downloads directly rather than as the
+# zip GitHub wraps around workflow artifacts.
 on:
   push:
     branches-ignore:
       - main
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -24,9 +27,20 @@ jobs:
       - name: Compile Feather
         run: make iphoneos
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
+      - name: Derive version
+        id: version
+        run: |
+          BASE=$(grep '^FEATHER_PROJECT_VERSION' Feather.xcconfig | cut -d '=' -f2 | tr -d ' ')
+          echo "tag=v${BASE}-dev.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "name=Feather ${BASE}-dev.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish prerelease
+        uses: softprops/action-gh-release@v2
         with:
-          name: Feather-${{ github.sha }}
-          path: packages/Feather.ipa
-          if-no-files-found: error
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          generate_release_notes: true
+          files: packages/Feather.ipa
+          fail_on_unmatched_files: true

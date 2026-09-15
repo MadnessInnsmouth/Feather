@@ -132,37 +132,34 @@ enum FR {
 		HeartbeatManager.shared.start(true)
 	}
 	
-	/// Mints a RemotePairing file from an imported lockdown pairing file.
+	/// Pairs with this device and stores the resulting RemotePairing file.
 	///
-	/// The bootstrap writes the new record over `pairingFile.plist`, which is the
-	/// single path the install path reads, so the lockdown record is copied aside
-	/// first — it is the credential the bootstrap needs, and regenerating later
-	/// would otherwise mean re-importing it.
-	static func generateRemotePairingFile(completion: @escaping (Error?) -> Void) {
+	/// Nothing needs to be imported first: the pairing runs against the device
+	/// over the loopback tunnel. Any existing pairing file is kept aside rather
+	/// than overwritten, since a lockdown record is still the credential other
+	/// tools want and re-obtaining one is the awkward part.
+	static func generateRemotePairingFile(
+		pin: String = "000000",
+		completion: @escaping (Error?) -> Void
+	) {
 		Task.detached {
 			let fileManager = FileManager.default
 			let active = URL(fileURLWithPath: HeartbeatManager.pairingFile())
-			let lockdownCopy = URL.documentsDirectory.appendingPathComponent("lockdownPairingFile.plist")
 
 			do {
-				if PairingFileInspector.inspect(atPath: active.path) == .lockdown {
-					try? fileManager.removeFileIfNeeded(at: lockdownCopy)
-					try fileManager.copyItem(at: active, to: lockdownCopy)
-				}
-
-				guard fileManager.fileExists(atPath: lockdownCopy.path) else {
-					throw PairingBootstrap.Failure(
-						stage: .localized("Lockdown pairing file"),
-						message: .localized("Import a lockdown pairing file first."),
-						code: 0
-					)
+				if fileManager.fileExists(atPath: active.path),
+				   PairingFileInspector.inspect(atPath: active.path) != .remotePairing {
+					let kept = URL.documentsDirectory.appendingPathComponent("lockdownPairingFile.plist")
+					try? fileManager.removeFileIfNeeded(at: kept)
+					try? fileManager.copyItem(at: active, to: kept)
 				}
 
 				try PairingBootstrap.generateRemotePairingFile(
-					fromLockdownPairingAt: lockdownCopy.path,
 					writingTo: active.path,
 					address: HeartbeatManager.shared.ipAddress,
-					hostname: Bundle.main.name
+					port: HeartbeatManager.shared.port_rsd,
+					hostname: Bundle.main.name,
+					pin: pin
 				)
 
 				// The tunnel may have been left flagged busy by an earlier failure.
